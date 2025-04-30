@@ -1,5 +1,5 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import Checkbox from '@/Components/Checkbox';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 
 export default function Login({ status, canResetPassword }) {
+    const [debugInfo, setDebugInfo] = useState(null);
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -17,17 +18,84 @@ export default function Login({ status, canResetPassword }) {
     const { auth } = usePage().props;
 
     useEffect(() => {
-        // Check if user is authenticated and has admin role
-        if (auth?.user && auth.user.role === 'admin') {
-            window.location.href = route('admin.dashboard');
+        // Check if user is authenticated
+        if (auth?.user) {
+            console.log("Auth user detected:", auth.user);
+            
+            // Check if role is an object (enum) or a string
+            const userRole = auth.user.role;
+            const isRoleObject = typeof userRole === 'object' && userRole !== null;
+            
+            console.log("User role:", userRole);
+            
+            // Handle both object and string roles
+            let isAdmin = false;
+            
+            if (isRoleObject && userRole.value === 'admin') {
+                isAdmin = true;
+                console.log("Admin detected via enum value");
+            } else if (userRole === 'admin') {
+                isAdmin = true;
+                console.log("Admin detected via direct string comparison");
+            }
+            
+            console.log("Is admin?", isAdmin);
+            
+            // Redirect based on role
+            if (isAdmin) {
+                console.log("Redirecting to admin dashboard");
+                router.visit(route('admin.dashboard'));
+            } else {
+                console.log("Redirecting to user dashboard");
+                router.visit(route('dashboard'));
+            }
         }
     }, [auth]);
 
     const submit = (e) => {
         e.preventDefault();
+        console.log("Submitting login form with data:", data);
 
         post(route('login'), {
-            onFinish: () => reset('password'),
+            onSuccess: (page) => {
+                console.log("Login successful, response:", page);
+                reset('password');
+                
+                // Check if we have user info and can redirect
+                if (page.props.auth && page.props.auth.user) {
+                    const user = page.props.auth.user;
+                    console.log("User logged in:", user);
+                    
+                    // Handle role comparison for both string and object roles
+                    const userRole = user.role;
+                    const isRoleObject = typeof userRole === 'object' && userRole !== null;
+                    
+                    let isAdmin = false;
+                    if (isRoleObject && userRole.value === 'admin') {
+                        isAdmin = true;
+                    } else if (userRole === 'admin') {
+                        isAdmin = true;
+                    }
+                    
+                    setDebugInfo({
+                        user: user.email,
+                        role: isRoleObject ? userRole.value : userRole,
+                        isAdmin
+                    });
+                    
+                    if (isAdmin) {
+                        console.log("Admin user detected, redirecting to admin dashboard");
+                        router.visit(route('admin.dashboard'));
+                    } else {
+                        console.log("Regular user detected, redirecting to dashboard");
+                        router.visit(route('dashboard'));
+                    }
+                }
+            },
+            onError: (errors) => {
+                console.error("Login errors:", errors);
+                setDebugInfo({ errors });
+            }
         });
     };
 
@@ -38,6 +106,12 @@ export default function Login({ status, canResetPassword }) {
             {status && (
                 <div className="mb-4 text-sm font-medium text-green-600">
                     {status}
+                </div>
+            )}
+            
+            {debugInfo && (
+                <div className="mb-4 text-sm font-medium text-gray-600 bg-gray-100 p-4 rounded">
+                    <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
                 </div>
             )}
 

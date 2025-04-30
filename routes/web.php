@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 const PROFILE_PATH = '/profile';
 
@@ -16,12 +19,45 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/admin/dashboard', function () {
-    return Inertia::render('AdminDashboard');
-})->middleware(['auth', 'verified', 'admin'])->name('admin.dashboard');
+// Debug route to check user role
+Route::get('/debug-role', function () {
+    if (Auth::check()) {
+        $user = Auth::user();
+        $role = $user->role;
+        $isAdmin = $role === 'admin';
+        
+        if (is_object($role)) {
+            $roleValue = $role->value;
+            $isAdmin = $roleValue === 'admin';
+            return [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $roleValue,
+                'role_type' => get_class($role),
+                'is_admin' => $isAdmin,
+                'role_comparison' => $roleValue === 'admin' ? 'true' : 'false'
+            ];
+        }
+        
+        return [
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $role,
+            'is_admin' => $isAdmin,
+            'role_comparison' => $role === 'admin' ? 'true' : 'false'
+        ];
+    }
+    
+    return ['error' => 'Not logged in'];
+})->middleware('auth');
+
+// Admin routes with admin middleware
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+});
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    return Inertia::render('User/Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
